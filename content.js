@@ -946,7 +946,8 @@ function createSidebar() {
   // 创建打开按钮（当侧边栏关闭时显示）
   const openBtn = document.createElement('button');
   openBtn.className = 'sidebar-open';
-  openBtn.innerHTML = getIcon('sidebarOpen');
+  openBtn.innerHTML = ''; // 使用 CSS 背景图显示 logo
+  openBtn.style.backgroundImage = `url('${chrome.runtime.getURL('images/logo.png')}')`;
   openBtn.onclick = function() {
     sidebar.style.right = '0';
   };
