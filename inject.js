@@ -41,8 +41,6 @@
       return originalFetch.apply(this, args);
     }
     
-    console.log('🎯 [插件] 拦截到目标 Fetch 请求:', url);
-    console.log('📤 [插件] 请求参数:', requestBody);
     
     const requestInfo = {
       type: 'fetch',
@@ -61,7 +59,6 @@
           .then(text => {
             try {
               requestInfo.response = JSON.parse(text);
-              console.log('✅ [插件] 获取到目标数据:', requestInfo.response);
             } catch {
               requestInfo.response = text;
             }
@@ -85,7 +82,6 @@
       .catch(error => {
         requestInfo.error = error.message;
         requestInfo.status = 'error';
-        console.error('❌ [插件] 请求失败:', error);
         window.dispatchEvent(new CustomEvent('apiCaptured', { 
           detail: requestInfo 
         }));
@@ -110,7 +106,6 @@
     // 检查是否是目标URL
     if (typeof url === 'string' && url.includes(TARGET_URL)) {
       this._requestInfo.isTarget = true;
-      console.log('🎯 [插件] 拦截到目标 XHR 请求:', method, url);
     }
     
     return originalOpen.apply(this, arguments);
@@ -122,14 +117,12 @@
     // 如果是目标URL，检查body中的svc参数
     if (xhr._requestInfo && xhr._requestInfo.isTarget) {
       if (body && isTargetRequest(xhr._requestInfo.url, body)) {
-        console.log('📤 [插件] XHR请求参数:', body);
         xhr._requestInfo.requestBody = body;
         
         xhr.addEventListener('load', function() {
           try {
             xhr._requestInfo.status = xhr.status;
             xhr._requestInfo.response = JSON.parse(xhr.responseText);
-            console.log('✅ [插件] 获取到目标数据:', xhr._requestInfo.response);
           } catch (e) {
             xhr._requestInfo.response = xhr.responseText;
           }
@@ -142,7 +135,6 @@
         xhr.addEventListener('error', function() {
           xhr._requestInfo.error = 'Request failed';
           xhr._requestInfo.status = 'error';
-          console.error('❌ [插件] XHR请求失败');
           window.dispatchEvent(new CustomEvent('apiCaptured', { 
             detail: xhr._requestInfo 
           }));
@@ -153,8 +145,5 @@
     return originalSend.apply(this, arguments);
   };
   
-  console.log('✅ [插件] API拦截器已注入 - 只监听目标请求');
-  console.log('🎯 目标URL:', TARGET_URL);
-  console.log('🎯 目标SVC:', TARGET_SVC);
 })();
 

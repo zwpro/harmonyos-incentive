@@ -1,10 +1,10 @@
 // ========== API 拦截功能 ==========
+// 注意：SVG图标库已从 icons.js 加载
 // 通过加载外部文件的方式注入脚本，避免 CSP 限制
 const script = document.createElement('script');
 script.src = chrome.runtime.getURL('inject.js');
 script.onload = function() {
   this.remove();
-  console.log('📦 [Content Script] 注入脚本已加载');
 };
 (document.head || document.documentElement).appendChild(script);
 
@@ -12,12 +12,15 @@ script.onload = function() {
 const apiRequests = [];
 // 存储所有应用数据（根据appId去重）
 const appsMap = new Map();
+// 打码状态
+let isMasked = false;
+// 保存展开状态的应用ID列表
+let expandedAppIds = new Set();
 
 // 监听页面上下文发来的API数据
 window.addEventListener('apiCaptured', function(event) {
   const requestInfo = event.detail;
   apiRequests.push(requestInfo);
-  console.log('📝 [Content Script] 收到API数据:', requestInfo);
   
   // 解析并提取应用列表
   extractAppsFromResponse(requestInfo.response);
@@ -54,10 +57,8 @@ function extractAppsFromResponse(response) {
     if (firstResult.cutOffTime) {
       window.__cutOffTime = firstResult.cutOffTime;
     }
-    
-    console.log(`✅ [插件] 已提取 ${appsMap.size} 个应用（去重后）`);
   } catch (error) {
-    console.error('❌ [插件] 解析应用数据失败:', error);
+    // 静默处理错误
   }
 }
 
@@ -241,265 +242,640 @@ function updateApiDisplay() {
   const phase1Count = appsArray.filter(app => app.rewards.phase1 > 0).length;
   const phase2Count = appsArray.filter(app => app.rewards.phase2 > 0).length;
   
+  // 计算额外统计数据
+  const avgReward = appsMap.size > 0 ? Math.round(totalReward / appsMap.size) : 0;
+  const avgUsers = appsMap.size > 0 ? Math.round(totalUsers / appsMap.size) : 0;
+  const baseRate = appsMap.size > 0 ? Math.round((baseCount / appsMap.size) * 100) : 0;
+  const phase1Rate = appsMap.size > 0 ? Math.round((phase1Count / appsMap.size) * 100) : 0;
+  const phase2Rate = appsMap.size > 0 ? Math.round((phase2Count / appsMap.size) * 100) : 0;
+  
   let html = `
-    <div style="margin-bottom: 20px; padding: 16px; background: #fff; border-radius: 10px; border: 1px solid #e0e0e0; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
-      <div style="font-size: 16px; font-weight: bold; margin-bottom: 12px; color: #ff6b35; display: flex; align-items: center;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="margin-right: 6px;">
-          <rect x="3" y="3" width="7" height="7" rx="1" fill="#ff6b35"/>
-          <rect x="14" y="3" width="7" height="7" rx="1" fill="#1976d2"/>
-          <rect x="3" y="14" width="7" height="7" rx="1" fill="#388e3c"/>
-          <rect x="14" y="14" width="7" height="7" rx="1" fill="#f57c00"/>
-        </svg>
-        激励计划统计
-      </div>
-      <div style="font-size: 14px; margin-top: 8px; color: #666;">
-        <div style="display: flex; justify-content: space-between; margin: 6px 0;">
-          <span>应用总数:</span>
-          <span style="font-weight: bold; color: #1976d2;">${appsMap.size} 个</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin: 6px 0;">
-          <span>总活跃用户:</span>
-          <span style="font-weight: bold; color: #388e3c;">${totalUsers}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin: 6px 0; padding-top: 8px; border-top: 1px solid #e0e0e0;">
-          <span>累计总激励:</span>
-          <span style="font-weight: bold; color: #ff6b35; font-size: 16px;">¥${totalReward}</span>
+    <div style="margin-bottom: 16px; background: #fff; border-radius: 12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden;">
+      <!-- 标题栏 -->
+      <div style="padding: 14px 16px; background: linear-gradient(135deg, #ff6b35 0%, #ff8555 100%); color: white;">
+        <div style="font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center;">
+            ${getIcon('star', 22, 'white')}
+            激励计划统计
+          </div>
+          ${window.__cutOffTime ? `<div style="font-size: 11px; opacity: 0.9;">截止: ${window.__cutOffTime}</div>` : ''}
         </div>
       </div>
-      <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0; font-size: 13px; color: #666;">
-        <div style="display: flex; justify-content: space-between; margin: 5px 0;">
-          <span>基础激励达标:</span>
-          <span style="color: #388e3c; font-weight: bold;">${baseCount}/${appsMap.size}</span>
+      
+      <!-- 主要指标卡片 -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-bottom: 1px solid #e0e0e0;">
+        <div style="padding: 16px; text-align: center; border-right: 1px solid #e0e0e0;">
+          <div style="font-size: 11px; color: #999; margin-bottom: 6px;">应用总数</div>
+          <div style="font-size: 28px; font-weight: bold; color: #1976d2;">${appsMap.size}</div>
+          <div style="font-size: 10px; color: #999; margin-top: 4px;">个应用</div>
         </div>
-        <div style="display: flex; justify-content: space-between; margin: 5px 0;">
-          <span>一阶段达标:</span>
-          <span style="color: #1976d2; font-weight: bold;">${phase1Count}/${appsMap.size}</span>
+        <div style="padding: 16px; text-align: center; border-right: 1px solid #e0e0e0;">
+          <div style="font-size: 11px; color: #999; margin-bottom: 6px;">累计激励</div>
+          <div style="font-size: 28px; font-weight: bold; color: #ff6b35;">¥${totalReward.toLocaleString()}</div>
+          <div style="font-size: 10px; color: #999; margin-top: 4px;">平均 ¥${avgReward.toLocaleString()}/应用</div>
         </div>
-        <div style="display: flex; justify-content: space-between; margin: 5px 0;">
-          <span>二阶段达标:</span>
-          <span style="color: #f57c00; font-weight: bold;">${phase2Count}/${appsMap.size}</span>
+        <div style="padding: 16px; text-align: center;">
+          <div style="font-size: 11px; color: #999; margin-bottom: 6px;">总活跃用户</div>
+          <div style="font-size: 28px; font-weight: bold; color: #388e3c;">${totalUsers.toLocaleString()}</div>
+          <div style="font-size: 10px; color: #999; margin-top: 4px;">平均 ${avgUsers}/应用</div>
         </div>
       </div>
-      ${window.__cutOffTime ? `<div style="font-size: 12px; margin-top: 10px; opacity: 0.7; text-align: center; color: #999;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 6px;">
-          <rect x="3" y="4" width="18" height="18" rx="2" stroke="#999" stroke-width="2" fill="none"/>
-          <line x1="3" y1="9" x2="21" y2="9" stroke="#999" stroke-width="2"/>
-          <circle cx="8" cy="14" r="1" fill="#999"/>
-          <circle cx="12" cy="14" r="1" fill="#999"/>
-          <circle cx="16" cy="14" r="1" fill="#999"/>
-        </svg>
-        截止: ${window.__cutOffTime}
-      </div>` : ''}
+      
+      <!-- 达标情况 -->
+      <div style="padding: 16px;">
+        <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 12px;">${getIcon('chart', 16, '#333')} 达标情况</div>
+        
+        <!-- 基础激励 -->
+        <div style="margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 12px; color: #666;">基础激励 (¥5,000)</span>
+            <span style="font-size: 12px; font-weight: 600; color: #388e3c;">${baseCount}/${appsMap.size} (${baseRate}%)</span>
+          </div>
+          <div style="height: 6px; background: #e8f5e9; border-radius: 3px; overflow: hidden;">
+            <div style="height: 100%; background: linear-gradient(90deg, #66bb6a, #43a047); width: ${baseRate}%; transition: width 0.3s;"></div>
+          </div>
+        </div>
+        
+        <!-- 一阶段激励 -->
+        <div style="margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 12px; color: #666;">一阶段激励 (¥3,000)</span>
+            <span style="font-size: 12px; font-weight: 600; color: #1976d2;">${phase1Count}/${appsMap.size} (${phase1Rate}%)</span>
+          </div>
+          <div style="height: 6px; background: #e3f2fd; border-radius: 3px; overflow: hidden;">
+            <div style="height: 100%; background: linear-gradient(90deg, #42a5f5, #1976d2); width: ${phase1Rate}%; transition: width 0.3s;"></div>
+          </div>
+        </div>
+        
+        <!-- 二阶段激励 -->
+        <div style="margin-bottom: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 12px; color: #666;">二阶段激励 (¥2,000)</span>
+            <span style="font-size: 12px; font-weight: 600; color: #f57c00;">${phase2Count}/${appsMap.size} (${phase2Rate}%)</span>
+          </div>
+          <div style="height: 6px; background: #fff3e0; border-radius: 3px; overflow: hidden;">
+            <div style="height: 100%; background: linear-gradient(90deg, #ffa726, #f57c00); width: ${phase2Rate}%; transition: width 0.3s;"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 阶段分布 -->
+      <div style="padding: 0 16px 16px 16px;">
+        <div style="font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px;">${getIcon('target', 16, '#333')} 阶段分布</div>
+        <div style="display: flex; gap: 6px; font-size: 11px;">
+          <div style="flex: ${phaseCount.waiting}; min-width: 40px; padding: 6px 4px; background: #f5f5f5; border-radius: 4px; text-align: center;">
+            <div style="color: #999; font-weight: 600;">${phaseCount.waiting}</div>
+            <div style="color: #999;">未开始</div>
+          </div>
+          <div style="flex: ${phaseCount.phase1}; min-width: 40px; padding: 6px 4px; background: #e3f2fd; border-radius: 4px; text-align: center;">
+            <div style="color: #1976d2; font-weight: 600;">${phaseCount.phase1}</div>
+            <div style="color: #1976d2;">阶段1</div>
+          </div>
+          <div style="flex: ${phaseCount.phase2}; min-width: 40px; padding: 6px 4px; background: #e8f5e9; border-radius: 4px; text-align: center;">
+            <div style="color: #388e3c; font-weight: 600;">${phaseCount.phase2}</div>
+            <div style="color: #388e3c;">阶段2</div>
+          </div>
+          <div style="flex: ${phaseCount.phase3}; min-width: 40px; padding: 6px 4px; background: #fff3e0; border-radius: 4px; text-align: center;">
+            <div style="color: #f57c00; font-weight: 600;">${phaseCount.phase3}</div>
+            <div style="color: #f57c00;">阶段3</div>
+          </div>
+          <div style="flex: ${phaseCount.ended}; min-width: 40px; padding: 6px 4px; background: #f5f5f5; border-radius: 4px; text-align: center;">
+            <div style="color: #666; font-weight: 600;">${phaseCount.ended}</div>
+            <div style="color: #666;">已结束</div>
+          </div>
+        </div>
+      </div>
     </div>
   `;
   
+  // 添加筛选器
+  html += `
+    <div class="filter-container">
+      <div class="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">阶段:</span>
+          <select class="filter-select" id="filter-phase">
+            <option value="all">全部</option>
+            <option value="0">未开始</option>
+            <option value="1">第一阶段</option>
+            <option value="2">第二阶段</option>
+            <option value="3">第三阶段</option>
+            <option value="4">已结束</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">类型:</span>
+          <select class="filter-select" id="filter-type">
+            <option value="all">全部</option>
+            <option value="mature">成熟应用</option>
+            <option value="new">新应用</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">激励:</span>
+          <select class="filter-select" id="filter-reward">
+            <option value="all">全部</option>
+            <option value="has">有激励</option>
+            <option value="none">无激励</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // 添加功能按钮区
+  html += `
+    <div style="margin-bottom: 16px; display: flex; gap: 8px; justify-content: flex-end;">
+      <button id="toggleMaskBtn" class="action-btn" title="切换敏感信息显示">
+        ${getIcon(isMasked ? 'eye' : 'eyeOff', 14, '#666')}
+        <span>${isMasked ? '显示' : '打码'}</span>
+      </button>
+      <button id="sharePosterBtn" class="action-btn action-btn-primary" title="生成分享海报">
+        ${getIcon('camera', 14, 'white')}
+        <span>生成海报</span>
+      </button>
+    </div>
+  `;
+  
+  // 开始表格
+  html += `
+    <table class="apps-table">
+      <thead>
+        <tr>
+          <th style="width: 30px;"></th>
+          <th style="width: 40px;">#</th>
+          <th style="width: 180px;">应用名称</th>
+          <th style="width: 70px;">类型</th>
+          <th style="width: 100px;">阶段状态</th>
+          <th style="width: 90px;">上架日期</th>
+          <th style="width: 60px;" title="上架次日起第1-30天">首月<br><span style="font-size: 10px; font-weight: normal; opacity: 0.7;">(1-30天)</span></th>
+          <th style="width: 60px;" title="上架次日起第31-60天">次月<br><span style="font-size: 10px; font-weight: normal; opacity: 0.7;">(31-60天)</span></th>
+          <th style="width: 60px;" title="上架次日起第61-90天">第三月<br><span style="font-size: 10px; font-weight: normal; opacity: 0.7;">(61-90天)</span></th>
+          <th style="width: 60px;">总用户</th>
+          <th style="width: 70px;">已获激励</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  
   html += appsArray.map((app, index) => {
-    const statusIcon = app.status === '1' 
-      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#4caf50"/><path d="M8 12l3 3 5-6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f44336"/><path d="M8 8l8 8M16 8l-8 8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>';
+    const statusIcon = app.status === '1' ? getIcon('success') : getIcon('error');
     
-    // 阶段状态样式
+    // 阶段状态样式和文本
     let phaseClass = '';
-    let phaseIcon = '';
+    let phaseText = '';
+    let phaseColor = '';
+    let phaseBg = '';
+    
     switch(app.currentPhase) {
       case 0:
         phaseClass = 'phase-waiting';
-        phaseIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10" stroke="#999" stroke-width="2" fill="none"/><path d="M12 6v6l4 4" stroke="#999" stroke-width="2" stroke-linecap="round"/></svg>';
+        phaseText = '未开始';
+        phaseColor = '#999';
+        phaseBg = '#f5f5f5';
         break;
       case 1:
         phaseClass = 'phase-1';
-        phaseIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10" fill="#1976d2"/></svg>';
+        phaseText = '阶段 1';
+        phaseColor = '#1976d2';
+        phaseBg = '#e3f2fd';
         break;
       case 2:
         phaseClass = 'phase-2';
-        phaseIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10" fill="#388e3c"/></svg>';
+        phaseText = '阶段 2';
+        phaseColor = '#388e3c';
+        phaseBg = '#e8f5e9';
         break;
       case 3:
         phaseClass = 'phase-3';
-        phaseIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10" fill="#f57c00"/></svg>';
+        phaseText = '阶段 3';
+        phaseColor = '#f57c00';
+        phaseBg = '#fff3e0';
         break;
       case 4:
         phaseClass = 'phase-end';
-        phaseIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10" fill="#666"/><path d="M8 12l3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        phaseText = '已完成';
+        phaseColor = '#666';
+        phaseBg = '#f5f5f5';
         break;
     }
     
     return `
-      <div class="app-item" data-app-id="${app.appId}">
-        <div class="app-header">
-          <span class="app-name">${index + 1}. ${app.appName}</span>
-          <span class="app-status">${statusIcon}</span>
-        </div>
-        
-        <div class="phase-status ${phaseClass}">
-          ${phaseIcon} ${app.phaseStatus}
-          ${app.daysUntilDeadline > 0 ? ` - 还剩 ${app.daysUntilDeadline} 天` : ''}
-        </div>
-        
-        <div class="app-info">
-          <div class="app-info-row">
-            <span class="label">应用类型:</span>
-            <span class="value" style="color: ${app.isMature ? '#1976d2' : '#f57c00'};">
-              ${app.isMature 
-                ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 3px;"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#1976d2"/></svg>成熟应用' 
-                : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 3px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#f57c00"/><circle cx="12" cy="9" r="2" fill="white"/></svg>新应用'
-              }
-            </span>
-          </div>
-          <div class="app-info-row">
-            <span class="label">上架日期:</span>
-            <span class="value">${app.firstOnShelfDate}</span>
-          </div>
-          <div class="app-info-row">
-            <span class="label">总活跃用户:</span>
-            <span class="value highlight">${app.totalUsers}</span>
-          </div>
-          <div class="app-info-row">
-            <span class="label">已获激励:</span>
-            <span class="value reward">¥${app.estimatedReward}</span>
-          </div>
-        </div>
-        
-        <div class="app-toggle-hint">点击查看详细信息 ▼</div>
-        
-        <div class="app-detail" id="app-detail-${app.appId}" style="display: none;">
-          <div style="padding: 14px; background: #f9f9f9; border-radius: 8px; margin-top: 10px; border: 1px solid #e0e0e0;">
-            <div style="margin-bottom: 14px;">
-              <div style="font-size: 14px; font-weight: bold; margin-bottom: 10px; color: #1976d2; display: flex; align-items: center;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="margin-right: 8px;">
-                  <rect x="3" y="4" width="18" height="18" rx="2" stroke="#1976d2" stroke-width="2" fill="none"/>
-                  <line x1="3" y1="9" x2="21" y2="9" stroke="#1976d2" stroke-width="2"/>
-                  <circle cx="8" cy="14" r="1.5" fill="#1976d2"/>
-                  <circle cx="12" cy="14" r="1.5" fill="#1976d2"/>
-                  <circle cx="16" cy="14" r="1.5" fill="#1976d2"/>
-                </svg>
-                阶段时间表
+      <tr class="app-row" data-app-id="${app.appId}" data-phase="${app.currentPhase}" data-type="${app.isMature ? 'mature' : 'new'}" data-reward="${app.estimatedReward > 0 ? 'has' : 'none'}">
+        <td style="text-align: center;">
+          <span class="expand-icon" data-app-id="${app.appId}">${getIcon('chevronRight', 14, '#999')}</span>
+        </td>
+        <td style="text-align: center; font-weight: 500; color: #999;">${index + 1}</td>
+        <td class="app-name-cell">
+          ${isMasked ? '*'.repeat(Math.min(app.appName.length, 8)) : app.appName} ${statusIcon}
+        </td>
+        <td style="text-align: center;">
+          <span style="color: ${app.isMature ? '#1976d2' : '#f57c00'}; font-size: 11px; font-weight: 500;">
+            ${app.isMature ? getIcon('starSmall', 12, '#1976d2') + '成熟' : getIcon('location', 12, '#f57c00') + '新应用'}
+          </span>
+        </td>
+        <td style="padding: 6px 8px;">
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+            <div class="phase-badge ${phaseClass}" style="background: ${phaseBg}; color: ${phaseColor}; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap; border: 1px solid ${phaseColor}33;">
+              ${phaseText}
+            </div>
+            ${app.daysUntilDeadline > 0 ? `
+              <div style="font-size: 10px; color: ${phaseColor}; font-weight: 500; white-space: nowrap;">
+                剩 ${app.daysUntilDeadline} 天
               </div>
-              
-              <div style="margin-bottom: 10px; padding: 8px; background: #e3f2fd; border-radius: 6px; border: 1px solid #2196f3;">
-                <div style="font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #1976d2;">
-                  第一阶段 (1-30天) ${app.currentPhase === 1 ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="8" fill="#1976d2"/></svg> 进行中' : ''}
+            ` : ''}
+          </div>
+        </td>
+        <td style="font-size: 11px;">${app.firstOnShelfDate}</td>
+        <td class="number-cell">${app.phases.phase1.users}</td>
+        <td class="number-cell">${app.phases.phase2.users}</td>
+        <td class="number-cell">${app.phases.phase3.users}</td>
+        <td class="number-cell" style="color: #ff6b35; font-weight: 600;">${app.totalUsers}</td>
+        <td class="reward-cell">¥${app.estimatedReward}</td>
+      </tr>
+      <tr class="detail-row" id="detail-${app.appId}">
+        <td colspan="11" class="detail-cell">
+          <div class="detail-content">
+            <div class="detail-section">
+              <div class="detail-section-title">${getIcon('calendar', 14, '#1976d2')} 阶段时间表 <span style="font-size: 10px; font-weight: normal; opacity: 0.7;">(从上架次日开始计算)</span></div>
+              <div class="detail-grid">
+                <div class="detail-item" style="background: #e3f2fd; border-color: #2196f3;">
+                  <div class="detail-item-label">首月 (上架次日起1-30天)</div>
+                  <div class="detail-item-value">${app.phases.phase1.range}</div>
+                  <div style="font-size: 10px; color: #666; margin-top: 2px;">有效月活: ${app.phases.phase1.users}</div>
                 </div>
-                <div style="font-size: 11px; opacity: 0.7; color: #555;">${app.phases.phase1.range}</div>
-                <div style="font-size: 12px; margin-top: 4px; color: #333;">活跃用户: ${app.phases.phase1.users}</div>
+                <div class="detail-item" style="background: #e8f5e9; border-color: #4caf50;">
+                  <div class="detail-item-label">次月 (上架次日起31-60天)</div>
+                  <div class="detail-item-value">${app.phases.phase2.range}</div>
+                  <div style="font-size: 10px; color: #666; margin-top: 2px;">有效月活: ${app.phases.phase2.users}</div>
+                </div>
+                <div class="detail-item" style="background: #fff3e0; border-color: #ff9800;">
+                  <div class="detail-item-label">第三月 (上架次日起61-90天)</div>
+                  <div class="detail-item-value">${app.phases.phase3.range}</div>
+                  <div style="font-size: 10px; color: #666; margin-top: 2px;">有效月活: ${app.phases.phase3.users}</div>
+                </div>
               </div>
-              
-              <div style="margin-bottom: 10px; padding: 8px; background: #e8f5e9; border-radius: 6px; border: 1px solid #4caf50;">
-                <div style="font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #388e3c;">
-                  第二阶段 (31-60天) ${app.currentPhase === 2 ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="8" fill="#388e3c"/></svg> 进行中' : ''}
-                </div>
-                <div style="font-size: 11px; opacity: 0.7; color: #555;">${app.phases.phase2.range}</div>
-                <div style="font-size: 12px; margin-top: 4px; color: #333;">活跃用户: ${app.phases.phase2.users}</div>
-              </div>
-              
-              <div style="margin-bottom: 10px; padding: 8px; background: #fff3e0; border-radius: 6px; border: 1px solid #ff9800;">
-                <div style="font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #f57c00;">
-                  第三阶段 (61-90天) ${app.currentPhase === 3 ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="8" fill="#f57c00"/></svg> 进行中' : ''}
-                </div>
-                <div style="font-size: 11px; opacity: 0.7; color: #555;">${app.phases.phase3.range}</div>
-                <div style="font-size: 12px; margin-top: 4px; color: #333;">活跃用户: ${app.phases.phase3.users}</div>
+              <div style="font-size: 10px; color: #999; margin-top: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;">
+                ${getIcon('info', 12, '#2196f3')} 说明：有效月活指HarmonyOS 5.0及之后系统的去重活跃设备数
               </div>
             </div>
             
-            <div style="margin-bottom: 10px; padding: 10px; background: #fff; border-radius: 6px; border: 1px solid #ff6b35;">
-              <div style="font-size: 14px; font-weight: bold; margin-bottom: 8px; color: #ff6b35; display: flex; align-items: center;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="margin-right: 8px;">
-                  <circle cx="12" cy="12" r="10" stroke="#ff6b35" stroke-width="2" fill="none"/>
-                  <path d="M12 6v6l4 2" stroke="#ff6b35" stroke-width="2" stroke-linecap="round"/>
-                  <text x="12" y="14" text-anchor="middle" font-size="10" fill="#ff6b35" font-weight="bold">¥</text>
-                </svg>
-                激励明细
-              </div>
-              <div style="font-size: 13px; line-height: 2;">
-                <div style="display: flex; justify-content: space-between;">
-                  <span>基础激励:</span>
-                  <span style="color: ${app.rewards.base > 0 ? '#4caf50' : '#999'}; font-weight: bold;">
-                    ${app.rewards.base > 0 
-                      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="10" fill="#4caf50"/><path d="M8 12l3 3 5-6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> ¥' + app.rewards.base 
-                      : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="10" fill="#999"/><path d="M8 8l8 8M16 8l-8 8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg> ¥0'}
-                  </span>
-                </div>
-                ${!app.isMature && app.rewards.base === 0 ? `
-                  <div style="font-size: 11px; opacity: 0.7; margin-left: 10px; margin-top: 2px; color: #ff9800;">
-                    需要：首月活跃 ≥ 50（当前: ${app.phases.phase1.users}）
+            <div class="detail-section">
+              <div class="detail-section-title">${getIcon('money', 14, '#ff6b35')} 激励明细</div>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <div class="detail-item-label">基础激励</div>
+                  <div class="detail-item-value" style="color: ${app.rewards.base > 0 ? '#4caf50' : '#999'};">
+                    ${app.rewards.base > 0 ? getIcon('check', 12, '#4caf50') + ' ¥' + app.rewards.base : getIcon('cross', 12, '#999') + ' ¥0'}
+                    ${!app.isMature && app.rewards.base === 0 ? `<br><span style="font-size: 10px; color: #ff9800;">需要首月≥50</span>` : ''}
                   </div>
-                ` : ''}
-                
-                <div style="display: flex; justify-content: space-between;">
-                  <span>一阶段激励:</span>
-                  <span style="color: ${app.rewards.phase1 > 0 ? '#4caf50' : '#999'}; font-weight: bold;">
-                    ${app.rewards.phase1 > 0 
-                      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="10" fill="#4caf50"/><path d="M8 12l3 3 5-6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> ¥' + app.rewards.phase1 
-                      : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="10" fill="#999"/><path d="M8 8l8 8M16 8l-8 8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg> ¥0'}
-                  </span>
                 </div>
-                ${!app.isMature && app.rewards.phase1 === 0 ? `
-                  <div style="font-size: 11px; opacity: 0.7; margin-left: 10px; margin-top: 2px; color: #ff9800;">
-                    需要：次月活跃 ≥ 100（当前: ${app.phases.phase2.users}）
+                <div class="detail-item">
+                  <div class="detail-item-label">一阶段激励</div>
+                  <div class="detail-item-value" style="color: ${app.rewards.phase1 > 0 ? '#4caf50' : '#999'};">
+                    ${app.rewards.phase1 > 0 ? getIcon('check', 12, '#4caf50') + ' ¥' + app.rewards.phase1 : getIcon('cross', 12, '#999') + ' ¥0'}
+                    ${!app.isMature && app.rewards.phase1 === 0 ? `<br><span style="font-size: 10px; color: #ff9800;">需要次月≥100</span>` : ''}
                   </div>
-                ` : ''}
-                
-                <div style="display: flex; justify-content: space-between;">
-                  <span>二阶段激励:</span>
-                  <span style="color: ${app.rewards.phase2 > 0 ? '#4caf50' : '#999'}; font-weight: bold;">
-                    ${app.rewards.phase2 > 0 
-                      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="10" fill="#4caf50"/><path d="M8 12l3 3 5-6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> ¥' + app.rewards.phase2 
-                      : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="12" cy="12" r="10" fill="#999"/><path d="M8 8l8 8M16 8l-8 8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg> ¥0'}
-                  </span>
                 </div>
-                ${app.rewards.phase2 === 0 ? `
-                  <div style="font-size: 11px; opacity: 0.7; margin-left: 10px; margin-top: 2px; color: #ff9800;">
-                    需要：第三月活跃 ≥ 200（当前: ${app.phases.phase3.users}）
+                <div class="detail-item">
+                  <div class="detail-item-label">二阶段激励</div>
+                  <div class="detail-item-value" style="color: ${app.rewards.phase2 > 0 ? '#4caf50' : '#999'};">
+                    ${app.rewards.phase2 > 0 ? getIcon('check', 12, '#4caf50') + ' ¥' + app.rewards.phase2 : getIcon('cross', 12, '#999') + ' ¥0'}
+                    ${app.rewards.phase2 === 0 ? `<br><span style="font-size: 10px; color: #ff9800;">需要第三月≥200</span>` : ''}
                   </div>
-                ` : ''}
-                
-                <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
-                  <span style="font-weight: bold;">预估总激励:</span>
-                  <span style="font-weight: bold; color: #ff6b35; font-size: 15px;">¥${app.estimatedReward}</span>
                 </div>
               </div>
             </div>
             
-            <div>
-              <div style="font-size: 12px; opacity: 0.7; margin-bottom: 6px; color: #666;">AppID:</div>
-              <div style="font-size: 11px; word-break: break-all; font-family: monospace; color: #555; line-height: 1.5;">${app.appId}</div>
+            <div class="detail-section">
+              <div class="detail-section-title">${getIcon('key', 14, '#666')} AppID</div>
+              <div style="font-size: 11px; font-family: monospace; color: #666; word-break: break-all;">${isMasked ? maskText(app.appId, 4) : app.appId}</div>
             </div>
           </div>
-        </div>
-      </div>
+        </td>
+      </tr>
     `;
   }).join('');
+  
+  // 关闭表格
+  html += `
+      </tbody>
+    </table>
+  `;
   
   apiListElement.innerHTML = html;
   
   // 重新绑定点击事件
   attachAppClickEvents();
+  
+  // 绑定筛选事件
+  attachFilterEvents();
+  
+  // 绑定功能按钮事件
+  attachActionButtonEvents();
+  
+  // 恢复展开状态
+  restoreExpandedState();
+}
+
+// 恢复展开状态
+function restoreExpandedState() {
+  expandedAppIds.forEach(appId => {
+    const detailRow = document.getElementById(`detail-${appId}`);
+    const appRow = document.querySelector(`.app-row[data-app-id="${appId}"]`);
+    const expandIcon = appRow?.querySelector('.expand-icon');
+    
+    if (detailRow && appRow) {
+      detailRow.classList.add('show');
+      if (expandIcon) {
+        // 展开状态：显示向下箭头（高亮）
+        expandIcon.innerHTML = getIcon('chevronDown', 14, '#ff6b35');
+      }
+    }
+  });
+}
+
+// 打码函数
+function maskText(text, showLength = 3) {
+  if (!text || text.length <= showLength * 2) {
+    return '*'.repeat(text.length);
+  }
+  return text.substring(0, showLength) + '*'.repeat(text.length - showLength * 2) + text.substring(text.length - showLength);
+}
+
+// 切换打码状态
+function toggleMask() {
+  isMasked = !isMasked;
+  updateApiDisplay(); // 重新渲染
+}
+
+// 生成海报
+async function generatePoster() {
+  const btn = document.getElementById('sharePosterBtn');
+  if (!btn) return;
+  
+  const originalText = btn.innerHTML;
+  btn.innerHTML = `${getIcon('info', 14, 'white')} <span>生成中...</span>`;
+  btn.disabled = true;
+  
+  try {
+    // 确保 html2canvas 已定义
+    if (typeof html2canvas === 'undefined') {
+      throw new Error('html2canvas 未加载，请重新加载插件');
+    }
+    
+    // 创建临时海报容器（不显示在界面上）
+    const tempContainer = document.createElement('div');
+    tempContainer.style.cssText = `
+      position: fixed;
+      top: -10000px;
+      left: -10000px;
+      width: 600px;
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+    `;
+    
+    // 获取统计数据
+    const appsArray = Array.from(appsMap.values());
+    const totalReward = appsArray.reduce((sum, app) => sum + app.estimatedReward, 0);
+    const totalUsers = appsArray.reduce((sum, app) => sum + app.totalUsers, 0);
+    const baseCount = appsArray.filter(app => app.rewards.base > 0).length;
+    const phase1Count = appsArray.filter(app => app.rewards.phase1 > 0).length;
+    const phase2Count = appsArray.filter(app => app.rewards.phase2 > 0).length;
+    
+    tempContainer.innerHTML = `
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="font-size: 28px; font-weight: bold; color: #ff6b35; margin-bottom: 8px;">
+          鸿蒙激励计划小助手 <span style="font-size: 16px; opacity: 0.7;">${AppConfig.version}</span>
+        </div>
+        <div style="font-size: 14px; color: #999;">数据统计报告</div>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+        <div style="background: linear-gradient(135deg, #f2994a 0%, #f2c94c 100%); padding: 20px; border-radius: 12px; text-align: center; color: white;">
+          <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">应用总数</div>
+          <div style="font-size: 36px; font-weight: bold;">${appsMap.size}</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 12px; text-align: center; color: white;">
+          <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">累计激励</div>
+          <div style="font-size: 36px; font-weight: bold;"><span style="font-size: 24px;">¥</span>${totalReward.toLocaleString()}</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 20px; border-radius: 12px; text-align: center; color: white;">
+          <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">总用户数</div>
+          <div style="font-size: 36px; font-weight: bold;">${totalUsers.toLocaleString()}</div>
+        </div>
+      </div>
+      
+      <div style="background: #f9f9f9; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+        <div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="#f57c00" stroke-width="2" fill="none"/>
+            <circle cx="12" cy="12" r="6" fill="#f57c00"/>
+            <circle cx="12" cy="12" r="2" fill="white"/>
+          </svg>
+          <span>达标情况</span>
+        </div>
+        <div style="display: flex; justify-content: space-around; text-align: center;">
+          <div>
+            <div style="font-size: 24px; font-weight: bold; color: #4caf50;">${baseCount}</div>
+            <div style="font-size: 12px; color: #666; margin-top: 4px;">基础激励</div>
+          </div>
+          <div>
+            <div style="font-size: 24px; font-weight: bold; color: #1976d2;">${phase1Count}</div>
+            <div style="font-size: 12px; color: #666; margin-top: 4px;">一阶段</div>
+          </div>
+          <div>
+            <div style="font-size: 24px; font-weight: bold; color: #f57c00;">${phase2Count}</div>
+            <div style="font-size: 12px; color: #666; margin-top: 4px;">二阶段</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="text-align: center; padding: 16px; border-top: 2px dashed #e0e0e0;">
+        <div style="font-size: 12px; color: #999;">生成时间: ${new Date().toLocaleString('zh-CN')}</div>
+      </div>
+    `;
+    
+    document.body.appendChild(tempContainer);
+    
+    // 使用 html2canvas 生成图片
+    const canvas = await html2canvas(tempContainer, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      logging: false,
+      useCORS: true,
+      width: tempContainer.offsetWidth,
+      height: tempContainer.offsetHeight
+    });
+    
+    // 移除临时容器
+    tempContainer.remove();
+    
+    // 将canvas转换为图片URL
+    const imageUrl = canvas.toDataURL('image/png');
+    
+    // 创建显示图片的弹窗
+    const posterContainer = document.createElement('div');
+    posterContainer.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 1000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      backdrop-filter: blur(5px);
+    `;
+    
+    posterContainer.innerHTML = `
+      <div style="max-width: 90%; max-height: 90vh; display: flex; flex-direction: column; align-items: center; gap: 20px;">
+        <!-- 海报图片 -->
+        <div style="background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); overflow: hidden; max-height: calc(90vh - 100px);">
+          <img src="${imageUrl}" alt="分享海报" style="display: block; max-width: 100%; height: auto; max-height: calc(90vh - 100px);">
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <button id="downloadPosterBtn" style="padding: 14px 36px; background: white; color: #667eea; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 3V16M12 16L7 11M12 16L17 11" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M3 17V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 19V17" stroke="#667eea" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>下载海报</span>
+          </button>
+          <button id="closePosterBtn" style="padding: 14px 36px; background: rgba(255,255,255,0.2); color: white; border: 2px solid white; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 6L6 18M6 6L18 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>关闭</span>
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(posterContainer);
+    
+    // 绑定关闭按钮
+    document.getElementById('closePosterBtn').addEventListener('click', () => {
+      posterContainer.remove();
+    });
+    
+    // 绑定下载按钮
+    document.getElementById('downloadPosterBtn').addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.download = `鸿蒙激励计划_${new Date().getTime()}.png`;
+      link.href = imageUrl;
+      link.click();
+    });
+    
+  } catch (error) {
+    console.error('生成海报失败:', error);
+    alert('生成海报失败：' + error.message);
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
+}
+
+// 绑定功能按钮事件
+function attachActionButtonEvents() {
+  const maskBtn = document.getElementById('toggleMaskBtn');
+  const posterBtn = document.getElementById('sharePosterBtn');
+  
+  if (maskBtn) {
+    maskBtn.addEventListener('click', toggleMask);
+  }
+  
+  if (posterBtn) {
+    posterBtn.addEventListener('click', generatePoster);
+  }
 }
 
 // 为应用项绑定点击事件
 function attachAppClickEvents() {
-  const appItems = document.querySelectorAll('.app-item');
-  appItems.forEach(item => {
-    // 移除旧的事件监听器（如果有）
-    const newItem = item.cloneNode(true);
-    item.parentNode.replaceChild(newItem, item);
-    
-    // 添加新的事件监听器
-    newItem.addEventListener('click', function() {
+  const appRows = document.querySelectorAll('.app-row');
+  appRows.forEach(row => {
+    row.addEventListener('click', function(e) {
       const appId = this.getAttribute('data-app-id');
-      const detailElement = document.getElementById(`app-detail-${appId}`);
-      if (detailElement) {
-        const isHidden = detailElement.style.display === 'none';
-        detailElement.style.display = isHidden ? 'block' : 'none';
+      const detailRow = document.getElementById(`detail-${appId}`);
+      const expandIcon = this.querySelector('.expand-icon');
+      
+      if (detailRow) {
+        const isExpanded = detailRow.classList.contains('show');
+        detailRow.classList.toggle('show');
         
-        // 更新提示文字
-        const hintElement = this.querySelector('.app-toggle-hint');
-        if (hintElement) {
-          hintElement.textContent = isHidden ? '点击收起 ▲' : '点击查看AppID ▼';
+        // 更新展开状态记录
+        if (isExpanded) {
+          expandedAppIds.delete(appId);
+        } else {
+          expandedAppIds.add(appId);
+        }
+        
+        // 更新箭头图标和样式
+        if (expandIcon) {
+          if (isExpanded) {
+            // 折叠后：显示向右箭头
+            expandIcon.innerHTML = getIcon('chevronRight', 14, '#999');
+          } else {
+            // 展开后：显示向下箭头（高亮）
+            expandIcon.innerHTML = getIcon('chevronDown', 14, '#ff6b35');
+          }
         }
       }
     });
   });
+}
+
+// 为筛选器绑定事件
+function attachFilterEvents() {
+  const phaseFilter = document.getElementById('filter-phase');
+  const typeFilter = document.getElementById('filter-type');
+  const rewardFilter = document.getElementById('filter-reward');
+  
+  if (!phaseFilter || !typeFilter || !rewardFilter) return;
+  
+  function filterApps() {
+    const phaseValue = phaseFilter.value;
+    const typeValue = typeFilter.value;
+    const rewardValue = rewardFilter.value;
+    
+    const appRows = document.querySelectorAll('.app-row');
+    const detailRows = document.querySelectorAll('.detail-row');
+    
+    appRows.forEach((row, index) => {
+      const phase = row.getAttribute('data-phase');
+      const type = row.getAttribute('data-type');
+      const reward = row.getAttribute('data-reward');
+      
+      let show = true;
+      
+      if (phaseValue !== 'all' && phase !== phaseValue) {
+        show = false;
+      }
+      
+      if (typeValue !== 'all' && type !== typeValue) {
+        show = false;
+      }
+      
+      if (rewardValue !== 'all' && reward !== rewardValue) {
+        show = false;
+      }
+      
+      row.style.display = show ? '' : 'none';
+      // 隐藏对应的详情行
+      detailRows[index].style.display = 'none';
+      detailRows[index].classList.remove('show');
+    });
+  }
+  
+  phaseFilter.addEventListener('change', filterApps);
+  typeFilter.addEventListener('change', filterApps);
+  rewardFilter.addEventListener('change', filterApps);
 }
 
 // 截断URL显示
@@ -528,11 +904,24 @@ function createSidebar() {
   // 创建标题
   const title = document.createElement('div');
   title.className = 'sidebar-title';
+  const logoUrl = chrome.runtime.getURL('images/logo.png');
   title.innerHTML = `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 8px;">
-      <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#ff6b35" stroke="#ff6b35" stroke-width="2" stroke-linejoin="round"/>
-    </svg>
-    <span>鸿蒙激励计划</span>
+    <div class="sidebar-title-left">
+      <img src="${logoUrl}" alt="Logo" class="sidebar-logo" />
+      <span>鸿蒙激励计划小助手</span>
+      <span class="sidebar-title-version">${AppConfig.version}</span>
+    </div>
+    <div class="sidebar-title-right">
+      <button class="sidebar-title-community" id="community-btn-content">
+        ${getIcon('users', 16, 'white')}
+        <span>进群</span>
+      </button>
+      <a href="${AppConfig.githubUrl}" target="_blank" class="sidebar-title-github">
+        ${getIcon('github', 16, 'white')}
+        <span>开源</span>
+      </a>
+      <button class="sidebar-close" id="sidebar-close-btn-content">×</button>
+    </div>
   `;
 
   // 创建内容区域
@@ -553,34 +942,74 @@ function createSidebar() {
   `;
   
   content.appendChild(info);
-  
-
-  // 创建关闭按钮
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'sidebar-close';
-  closeBtn.textContent = '×';
-  closeBtn.onclick = function() {
-    sidebar.style.right = '-480px';
-  };
 
   // 创建打开按钮（当侧边栏关闭时显示）
   const openBtn = document.createElement('button');
   openBtn.className = 'sidebar-open';
-  openBtn.innerHTML = `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="3" width="18" height="4" rx="1" fill="white"/>
-      <rect x="3" y="10" width="18" height="4" rx="1" fill="white" opacity="0.8"/>
-      <rect x="3" y="17" width="18" height="4" rx="1" fill="white" opacity="0.6"/>
-    </svg>
-  `;
+  openBtn.innerHTML = getIcon('sidebarOpen');
   openBtn.onclick = function() {
     sidebar.style.right = '0';
   };
 
   // 组装侧边栏
-  sidebar.appendChild(closeBtn);
   sidebar.appendChild(title);
   sidebar.appendChild(content);
+  
+  // 绑定关闭按钮事件
+  setTimeout(() => {
+    const closeBtn = document.getElementById('sidebar-close-btn-content');
+    if (closeBtn) {
+      closeBtn.onclick = function() {
+        sidebar.style.right = '-920px';
+      };
+    }
+    
+    // 绑定进群按钮事件
+    const communityBtn = document.getElementById('community-btn-content');
+    if (communityBtn) {
+      communityBtn.onclick = function() {
+        showCommunityModal();
+      };
+    }
+    
+    // 绑定底部社区按钮事件
+    const footerCommunityBtn = document.getElementById('footer-community-btn');
+    if (footerCommunityBtn) {
+      footerCommunityBtn.onclick = function() {
+        showCommunityModal();
+      };
+    }
+  }, 0);
+  
+  // 显示社群弹窗
+  function showCommunityModal() {
+    // 创建弹窗
+    const modal = document.createElement('div');
+    modal.className = 'community-modal';
+    modal.innerHTML = `
+      <div class="community-modal-content">
+        <button class="community-modal-close">×</button>
+        <div class="community-modal-title">社群交流</div>
+        <div class="community-qrcode">
+          <img src="${AppConfig.community.qrCodeUrl}" alt="群二维码">
+        </div>
+      </div>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(modal);
+    
+    // 绑定关闭事件
+    modal.querySelector('.community-modal-close').onclick = function() {
+      modal.remove();
+    };
+    
+    modal.onclick = function(e) {
+      if (e.target === modal) {
+        modal.remove();
+      }
+    };
+  }
   
   // 添加到页面
   document.body.appendChild(sidebar);

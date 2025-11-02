@@ -3,6 +3,23 @@
   "name": "鸿蒙激励计划小助手",
   "version": "1.0.0",
   "description": "鸿蒙激励计划小助手",
+  "icons": {
+    "16": "images/icon/icon16.png",
+    "32": "images/icon/icon32.png",
+    "48": "images/icon/icon48.png",
+    "64": "images/icon/icon64.png",
+    "128": "images/icon/icon128.png",
+    "256": "images/icon/icon256.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "images/icon/icon16.png",
+      "32": "images/icon/icon32.png",
+      "48": "images/icon/icon48.png",
+      "128": "images/icon/icon128.png"
+    },
+    "default_title": "鸿蒙激励计划小助手"
+  },
   "permissions": [
     "activeTab"
   ],
@@ -12,14 +29,31 @@
         "*://developer.huawei.com/consumer/cn/activity/harmonyos-incentive/data-query",
         "*://developer.huawei.com/consumer/cn/activity/harmonyos-incentive/data-query/"
       ],
-      "js": ["content.js"],
-      "css": ["styles.css"],
+      "js": [
+        "libs/html2canvas.min.js",
+        "icons.js",
+        "core/config.js",
+        "core/state.js",
+        "core/dataProcessor.js",
+        "core/statistics.js",
+        "utils/mask.js",
+        "ui/appRow.js",
+        "ui/renderer.js",
+        "events/handlers.js",
+        "features/poster.js",
+        "app.js"
+      ],
+      "css": ["ui/styles.css"],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["inject.js"],
+      "resources": [
+        "inject.js",
+        "libs/html2canvas.min.js",
+        "images/*"
+      ],
       "matches": ["*://developer.huawei.com/*"]
     }
   ]

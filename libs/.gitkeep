@@ -1,0 +1,7 @@
+# 第三方库目录
+
+将 html2canvas.min.js 下载后放在此目录。
+
+下载地址：
+https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
+

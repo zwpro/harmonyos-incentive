@@ -1,0 +1,237 @@
+# ========================================
+# 鸿蒙激励计划小助手 - Git 忽略配置
+# ========================================
+
+# ============ 操作系统相关 ============
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============ IDE 相关 ============
+
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+.history/
+
+# JetBrains IDEs (WebStorm, PhpStorm, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+sftp-config.json
+Package Control.last-run
+Package Control.ca-list
+Package Control.ca-bundle
+Package Control.system-ca-bundle
+Package Control.cache/
+Package Control.ca-certs/
+Package Control.merged-ca-bundle
+Package Control.user-ca-bundle
+oscrypto-ca-bundle.crt
+bh_unicode_properties.cache
+GitHub.sublime-settings
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+*~
+tags
+[._]*.un~
+
+# ============ Node.js 相关 ============
+
+# 依赖目录
+node_modules/
+jspm_packages/
+bower_components/
+
+# npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.eslintcache
+.node_repl_history
+.yarn-integrity
+.pnp.*
+
+# Package manager lock files (可选保留)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ============ 构建输出 ============
+
+# 构建目录
+dist/
+build/
+out/
+.output/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+.rollup.cache/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ============ 日志文件 ============
+
+# 日志
+logs/
+*.log
+log/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ============ 测试覆盖率 ============
+
+# Coverage directory
+coverage/
+*.lcov
+.nyc_output/
+lib-cov/
+.coverage
+.pytest_cache/
+.hypothesis/
+
+# ============ 环境变量 ============
+
+# 环境配置文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# ============ 打包文件 ============
+
+# 压缩包（开发时生成）
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# 但保留发布版本的打包文件
+!releases/*.zip
+
+# ============ Chrome 扩展相关 ============
+
+# 扩展私钥（重要！不要提交）
+*.pem
+key.pem
+*.crx
+
+# 扩展打包临时文件
+.crx_build/
+extension.zip
+
+# ============ 其他 ============
+
+# 备份文件
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+*.swo
+
+# 草稿和笔记
+drafts/
+notes/
+TODO.txt
+NOTES.md
+
+# 敏感信息
+secrets/
+credentials/
+.secrets/
+*.secret
+*.key
+
+# 数据库文件
+*.sqlite
+*.db
+*.sql
+
+# ============ 项目特定 ============
+
+# 自定义配置（如果有本地配置）
+config.local.js
+config.local.json
+
+# 截图和临时图片（除了 images 目录）
+screenshots/
+temp_images/
+
+# 测试生成的海报
+test_poster*.png
+
