@@ -172,6 +172,7 @@ const UIRenderer = {
             <th style="width: 70px;">类型</th>
             <th style="width: 100px;">阶段状态</th>
             <th style="width: 90px;">上架日期</th>
+            <th style="width: 65px;" title="昨天新增的日活用户数">昨天新增</th>
             <th style="width: 60px;" title="上架次日起第1-30天">首月<br><span style="font-size: 10px; font-weight: normal; opacity: 0.7;">(1-30天)</span></th>
             <th style="width: 60px;" title="上架次日起第31-60天">次月<br><span style="font-size: 10px; font-weight: normal; opacity: 0.7;">(31-60天)</span></th>
             <th style="width: 60px;" title="上架次日起第61-90天">第三月<br><span style="font-size: 10px; font-weight: normal; opacity: 0.7;">(61-90天)</span></th>
@@ -207,13 +208,60 @@ const UIRenderer = {
     `;
   },
 
+  // 渲染鸿蒙功德按钮
+  renderMeritButton() {
+    // 从localStorage读取功德次数
+    const savedData = localStorage.getItem('hongmeng_merit_data');
+    let meritCount = 0;
+    let todayCount = 0;
+    
+    if (savedData) {
+      const data = JSON.parse(savedData);
+      meritCount = data.totalCount || 0;
+      // 检查日期，如果是新的一天则重置今日计数
+      if (data.lastDate === new Date().toDateString()) {
+        todayCount = data.todayCount || 0;
+      }
+    }
+    
+    const muyuUrl = chrome.runtime.getURL('images/muyu.png');
+    const bangziUrl = chrome.runtime.getURL('images/bangzi.png');
+    
+    return `
+      <div class="merit-container">
+        <button id="hongmeng-merit-btn" class="hongmeng-merit-btn">
+          <div class="merit-woodenfish">
+            <div class="merit-muyu-wrapper">
+              <img src="${muyuUrl}" alt="木鱼" class="merit-icon" />
+              <img src="${bangziUrl}" alt="棒子" class="merit-bangzi" id="merit-bangzi" />
+            </div>
+            <span class="merit-text">鸿蒙功德</span>
+            <span class="merit-subtitle">点击木鱼 积累功德</span>
+          </div>
+          <div class="merit-stats">
+            <div class="merit-stat-item">
+              <span class="merit-stat-label">总计</span>
+              <span class="merit-stat-value" id="merit-total-count">${meritCount}</span>
+            </div>
+            <div class="merit-stat-divider"></div>
+            <div class="merit-stat-item">
+              <span class="merit-stat-label">今日</span>
+              <span class="merit-stat-value" id="merit-today-count">${todayCount}</span>
+            </div>
+          </div>
+        </button>
+      </div>
+    `;
+  },
+
   // 完整渲染
   renderAll() {
     return this.renderStatisticsPanel() + 
            this.renderFilters() + 
            this.renderActionButtons() + 
            this.renderAppsTable() +
-           this.renderCommunityFooter();
+           this.renderCommunityFooter() +
+           this.renderMeritButton();
   }
 };
 

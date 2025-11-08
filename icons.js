@@ -64,6 +64,8 @@ const SVGIcons = {
   
   users: (size = 16, color = 'white') => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><circle cx="9" cy="7" r="4" stroke="${color}" stroke-width="2" fill="none"/><circle cx="17" cy="9" r="3" stroke="${color}" stroke-width="2" fill="none"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M15 20c0-2 1.5-4 5-4s5 2 5 4" stroke="${color}" stroke-width="2" stroke-linecap="round"/></svg>`,
   
+  refresh: (size = 16, color = 'white') => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;"><path d="M21 10a9 9 0 11-9-9 9 9 0 019 9z" stroke="${color}" stroke-width="2" fill="none"/><path d="M21 4v6h-6" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  
   // 统计图标
   dashboard: (size = 20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="margin-right: 6px;"><rect x="3" y="3" width="7" height="7" rx="1" fill="#ff6b35"/><rect x="14" y="3" width="7" height="7" rx="1" fill="#1976d2"/><rect x="3" y="14" width="7" height="7" rx="1" fill="#388e3c"/><rect x="14" y="14" width="7" height="7" rx="1" fill="#f57c00"/></svg>`
 };

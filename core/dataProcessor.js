@@ -17,12 +17,21 @@ function extractAppsFromResponse(response) {
     if (!firstResult.list || !Array.isArray(firstResult.list)) return;
     
     // 提取应用列表并根据appId去重
+    const enrichedApps = [];
     firstResult.list.forEach(app => {
       if (app.appId) {
         const enrichedApp = enrichAppData(app);
         AppState.addApp(enrichedApp);
+        enrichedApps.push(enrichedApp);
       }
     });
+    
+    // 保存所有应用的每日数据到本地
+    if (enrichedApps.length > 0 && typeof AppStorage !== 'undefined') {
+      AppStorage.saveAllAppsData(enrichedApps).catch(err => {
+        console.error('保存应用数据失败:', err);
+      });
+    }
     
     // 提取截止时间
     if (firstResult.cutOffTime) {
@@ -58,7 +67,8 @@ function enrichAppData(app) {
   // 统一应用类型显示：小游戏 -> 游戏
   const normalizedAppType = app.appType === '小游戏' ? '游戏' : app.appType;
   
-  return {
+  // 获取昨天新增（异步，初始值为'-'）
+  const enrichedApp = {
     ...app,
     appType: normalizedAppType,
     phases,
@@ -68,8 +78,87 @@ function enrichAppData(app) {
                 (parseInt(app.secondMonthValidActiveUserNum) || 0) +
                 (parseInt(app.thirdMonthValidActiveUserNum) || 0),
     rewards,
-    estimatedReward: rewards.total
+    estimatedReward: rewards.total,
+    yesterdayIncrement: '-' // 默认值
   };
+  
+  // 异步获取昨天新增（不阻塞）
+  if (typeof AppStorage !== 'undefined') {
+    getYesterdayIncrement(app.appId).then(increment => {
+      enrichedApp.yesterdayIncrement = increment;
+      // 更新显示（仅更新特定单元格，不重新渲染整个表格）
+      updateYesterdayIncrementDisplay(app.appId, increment);
+    }).catch(err => {
+      console.error('获取昨天新增失败:', err);
+    });
+  }
+  
+  return enrichedApp;
+}
+
+// 更新昨天新增的显示
+function updateYesterdayIncrementDisplay(appId, increment) {
+  const row = document.querySelector(`.app-row[data-app-id="${appId}"]`);
+  if (!row) return;
+  
+  // 找到昨天新增的单元格（第7个td）
+  const cells = row.querySelectorAll('td');
+  if (cells.length > 6) {
+    const cell = cells[6];
+    const formatted = formatYesterdayIncrementValue(increment);
+    const color = getYesterdayIncrementColor(increment);
+    cell.style.color = color;
+    cell.innerHTML = formatted;
+  }
+}
+
+// 格式化昨天新增值
+function formatYesterdayIncrementValue(increment) {
+  if (increment === '-') {
+    return '<span style="font-size: 10px; color: #999;">-</span>';
+  }
+  if (increment === 0) {
+    return '<span style="color: #999;">0</span>';
+  }
+  return `+${increment}`;
+}
+
+// 获取昨天新增颜色
+function getYesterdayIncrementColor(increment) {
+  if (increment === '-' || increment === 0) {
+    return '#999';
+  }
+  return '#4caf50';
+}
+
+// 获取昨天的新增用户数
+// 注意：接口返回的是截至昨天的累计数据
+// 今天获取的数据 = 截至昨天的累计
+// 昨天的新增 = 今天获取的累计 - 昨天获取的累计
+async function getYesterdayIncrement(appId) {
+  if (!appId || typeof AppStorage === 'undefined') return '-';
+  
+  try {
+    const history = await AppStorage.getAppHistory(appId);
+    if (!history || !history.records || history.records.length < 2) {
+      return '-'; // 数据不足，至少需要两天的数据
+    }
+    
+    // 今天获取的记录（截至昨天的累计）
+    const records = history.records;
+    const todayRecord = records[records.length - 1];  // 今天获取的数据
+    const yesterdayRecord = records[records.length - 2];  // 昨天获取的数据
+    
+    // 昨天的新增 = 今天的累计 - 昨天的累计
+    const increment = Math.max(0, Math.round(
+      todayRecord.totalUsers - yesterdayRecord.totalUsers
+    ));
+    
+    return increment;
+  } catch (error) {
+    console.error('计算昨天新增失败:', error);
+    return '-';
+  }
 }
 
 // 计算三个阶段的时间范围

@@ -27,13 +27,14 @@ const AppRowRenderer = {
           ${this.renderPhaseStatus(phaseInfo, app.daysUntilDeadline)}
         </td>
         <td style="font-size: 11px;">${app.firstOnShelfDate}</td>
+        <td class="number-cell" style="color: ${this.getYesterdayColor(app.yesterdayIncrement)}; font-weight: 600;">${this.formatYesterdayIncrement(app.yesterdayIncrement)}</td>
         <td class="number-cell" style="color: ${this.getUserColor(app.phases.phase1.users, 50)}; font-weight: ${app.phases.phase1.users >= 50 ? '600' : '400'};">${app.phases.phase1.users}</td>
         <td class="number-cell" style="color: ${this.getUserColor(app.phases.phase2.users, 100)}; font-weight: ${app.phases.phase2.users >= 100 ? '600' : '400'};">${app.phases.phase2.users}</td>
         <td class="number-cell" style="color: ${app.appType === '游戏' ? '#999' : this.getUserColor(app.phases.phase3.users, 200)}; font-weight: ${app.phases.phase3.users >= 200 ? '600' : '400'};">${app.appType === '游戏' ? '-' : app.phases.phase3.users}</td>
         <td class="reward-cell">¥${app.estimatedReward}</td>
       </tr>
       <tr class="detail-row" id="detail-${app.appId}">
-        <td colspan="10" class="detail-cell">
+        <td colspan="11" class="detail-cell">
           ${this.renderDetail(app)}
         </td>
       </tr>
@@ -66,6 +67,34 @@ const AppRowRenderer = {
     return users >= threshold ? '#4caf50' : '#f44336';
   },
   
+  // 格式化昨天新增显示
+  formatYesterdayIncrement(increment) {
+    if (increment === null || increment === undefined) {
+      return '<span style="font-size: 10px; color: #999;">加载中...</span>';
+    }
+    if (increment === '-') {
+      return '<span style="font-size: 10px; color: #999;">-</span>';
+    }
+    if (increment === 0) {
+      return '<span style="color: #999;">0</span>';
+    }
+    return `+${increment}`;
+  },
+  
+  // 获取昨天新增的颜色
+  getYesterdayColor(increment) {
+    if (increment === null || increment === undefined || increment === '-') {
+      return '#999';
+    }
+    if (increment === 0) {
+      return '#999';
+    }
+    if (increment > 0) {
+      return '#4caf50'; // 绿色表示增长
+    }
+    return '#999';
+  },
+  
   // 渲染阶段状态
   renderPhaseStatus(phaseInfo, daysLeft) {
     return `
@@ -95,6 +124,16 @@ const AppRowRenderer = {
           </div>
           <div class="detail-info-box">
             ${getIcon('info', 12, '#2196f3')} 说明：有效月活指HarmonyOS 5.0及之后系统的去重活跃设备数
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <div class="detail-section-title">${getIcon('chart', 14, '#4caf50')} 每日新增趋势 <span class="detail-subtitle">(最近90天)</span></div>
+          <div class="chart-container">
+            <canvas id="chart-${app.appId}" class="trend-chart"></canvas>
+          </div>
+          <div class="chart-loading" id="chart-loading-${app.appId}">
+            加载图表数据中...
           </div>
         </div>
         
@@ -153,6 +192,156 @@ const AppRowRenderer = {
         </div>
       </div>
     `;
+  },
+  
+  // 渲染图表
+  async renderChart(appId) {
+    if (typeof AppStorage === 'undefined' || typeof Chart === 'undefined') {
+      console.error('AppStorage或Chart未加载');
+      return;
+    }
+    
+    const canvas = document.getElementById(`chart-${appId}`);
+    const loadingEl = document.getElementById(`chart-loading-${appId}`);
+    
+    if (!canvas) return;
+    
+    try {
+      // 获取图表数据
+      const chartData = await AppStorage.getChartData(appId);
+      
+      // 隐藏加载提示
+      if (loadingEl) {
+        loadingEl.style.display = 'none';
+      }
+      
+      // 如果没有历史数据
+      if (!chartData.dates || chartData.dates.length === 0) {
+        const ctx = canvas.getContext('2d');
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#999';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无历史数据，数据将从今天开始记录', canvas.width / 2, canvas.height / 2);
+        return;
+      }
+      
+      // 销毁已存在的图表实例
+      const existingChart = Chart.getChart(canvas);
+      if (existingChart) {
+        existingChart.destroy();
+      }
+      
+      // 创建图表
+      const ctx = canvas.getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: chartData.dates,
+          datasets: [
+            {
+              label: '每日新增',
+              data: chartData.dailyIncrement.total,
+              borderColor: '#4caf50',
+              backgroundColor: 'rgba(76, 175, 80, 0.15)',
+              tension: 0.3,
+              fill: true,
+              borderWidth: 2,
+              pointRadius: 3,
+              pointHoverRadius: 5,
+              pointBackgroundColor: '#4caf50',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                padding: 15,
+                font: {
+                  size: 12
+                }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12,
+              titleFont: {
+                size: 13
+              },
+              bodyFont: {
+                size: 12
+              },
+              callbacks: {
+                label: function(context) {
+                  return '新增用户: ' + context.parsed.y;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              display: true,
+              grid: {
+                display: false
+              },
+              ticks: {
+                maxRotation: 45,
+                minRotation: 45,
+                font: {
+                  size: 10
+                }
+              }
+            },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              title: {
+                display: true,
+                text: '每日新增用户数',
+                font: {
+                  size: 11
+                }
+              },
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              },
+              ticks: {
+                font: {
+                  size: 10
+                },
+                beginAtZero: true,
+                precision: 0,
+                stepSize: 1,
+                callback: function(value) {
+                  // 只显示整数
+                  if (Math.floor(value) === value) {
+                    return value;
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('渲染图表失败:', error);
+      if (loadingEl) {
+        loadingEl.textContent = '加载图表失败';
+        loadingEl.style.color = '#f44336';
+      }
+    }
   }
 };
 

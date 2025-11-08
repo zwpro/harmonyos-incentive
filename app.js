@@ -85,6 +85,10 @@ const App = {
           ${getIcon('github', 16, 'white')}
           <span>开源</span>
         </a>
+        <button class="sidebar-title-update" id="update-btn">
+          ${getIcon('refresh', 16, 'white')}
+          <span>检查更新</span>
+        </button>
         <button class="sidebar-close" id="sidebar-close-btn">×</button>
       </div>
     `;
@@ -127,6 +131,14 @@ const App = {
       if (closeBtn) {
         closeBtn.onclick = function() {
           sidebar.style.right = '-920px';
+        };
+      }
+      
+      // 绑定检查更新按钮事件
+      const updateBtn = document.getElementById('update-btn');
+      if (updateBtn) {
+        updateBtn.onclick = function() {
+          window.open(AppConfig.chromeWebStoreUrl, '_blank');
         };
       }
       
