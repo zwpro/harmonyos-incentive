@@ -181,6 +181,10 @@ const UIRenderer = {
           总计 <span class="total-count-number">${totalCount}</span> 款
         </div>
         <div class="action-buttons-group">
+          <button id="pushSettingsBtn" class="action-btn" title="数据推送设置">
+            ${getIcon('settings', 14, '#666')}
+            <span>推送设置</span>
+          </button>
           <button id="toggleMaskBtn" class="action-btn" title="切换敏感信息显示">
             ${getIcon(AppState.isMasked ? 'eye' : 'eyeOff', 14, '#666')}
             <span>${AppState.isMasked ? '显示' : '打码'}</span>
