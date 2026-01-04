@@ -1,6 +1,9 @@
 // ========== 主应用模块 ==========
 
 const App = {
+  // 是否已触发首次推送
+  hasInitialPush: false,
+  
   // 初始化
   init() {
     this.injectAPIInterceptor();
@@ -29,7 +32,33 @@ const App = {
       
       // 更新显示
       this.render();
+      
+      // 数据加载完成后，检查是否需要自动推送
+      this.checkAutoPush();
     });
+  },
+  
+  // 检查并启动自动推送
+  async checkAutoPush() {
+    // 只在首次数据加载时触发
+    if (this.hasInitialPush) return;
+    
+    const apps = AppState.getAppsArray();
+    if (apps.length === 0) return;
+    
+    const config = await AppConfig.push.getConfig();
+    
+    // 如果启用了推送和定时推送
+    if (config.enabled && config.autoEnabled && config.url) {
+      this.hasInitialPush = true;
+      
+      // 立即推送一次
+      console.log('[推送] 数据加载完成，立即推送');
+      await AppConfig.push.pushData(apps, AppState.cutOffTime);
+      
+      // 启动定时器
+      AppConfig.push.startAutoTimer();
+    }
   },
   
   // 渲染主界面

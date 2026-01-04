@@ -1535,3 +1535,232 @@
   }
 }
 
+
+
+/* ========== 推送设置弹窗样式 ========== */
+.push-settings-modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 900px;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999999;
+  backdrop-filter: blur(4px);
+}
+
+.push-settings-modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 450px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.push-settings-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.push-settings-modal-close:hover {
+  background: #ff6b35;
+  color: white;
+}
+
+.push-settings-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.push-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.push-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.push-settings-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  flex-shrink: 0;
+}
+
+.push-settings-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: border-color 0.2s;
+}
+
+.push-settings-input:focus {
+  outline: none;
+  border-color: #ff6b35;
+}
+
+.push-settings-input::placeholder {
+  color: #999;
+}
+
+/* 开关样式 */
+.push-settings-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+
+.push-settings-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.push-settings-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 26px;
+}
+
+.push-settings-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.push-settings-switch input:checked + .push-settings-slider {
+  background-color: #ff6b35;
+}
+
+.push-settings-switch input:checked + .push-settings-slider:before {
+  transform: translateX(22px);
+}
+
+.push-settings-hint {
+  font-size: 12px;
+  color: #999;
+  padding: 10px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+.push-settings-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.push-settings-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.push-settings-btn-primary {
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8555 100%);
+  color: white;
+}
+
+.push-settings-btn-primary:hover {
+  background: linear-gradient(135deg, #ff8555 0%, #ffa07a 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+}
+
+.push-settings-btn-secondary {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.push-settings-btn-secondary:hover {
+  background: #e8e8e8;
+}
+
+.push-settings-status {
+  font-size: 13px;
+  text-align: center;
+  padding: 8px;
+  border-radius: 6px;
+  min-height: 20px;
+}
+
+.push-settings-status-success {
+  color: #388e3c;
+  background: #e8f5e9;
+}
+
+.push-settings-status-error {
+  color: #d32f2f;
+  background: #ffebee;
+}
+
+
+/* ========== 推送定时器显示样式 ========== */
+.push-timer-display {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 12px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 12px;
+  animation: pulse-timer 1s ease-in-out infinite;
+}
+
+@keyframes pulse-timer {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}

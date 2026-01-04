@@ -256,6 +256,7 @@ const EventHandlers = {
   attachActionButtonEvents() {
     const maskBtn = document.getElementById('toggleMaskBtn');
     const posterBtn = document.getElementById('sharePosterBtn');
+    const pushSettingsBtn = document.getElementById('pushSettingsBtn');
     
     if (maskBtn) {
       maskBtn.addEventListener('click', () => {
@@ -269,6 +270,133 @@ const EventHandlers = {
         PosterGenerator.generate();
       });
     }
+    
+    if (pushSettingsBtn) {
+      pushSettingsBtn.addEventListener('click', () => {
+        this.showPushSettingsModal();
+      });
+    }
+  },
+  
+  // 显示推送设置弹窗
+  async showPushSettingsModal() {
+    // 获取当前配置
+    const config = await AppConfig.push.getConfig();
+    
+    // 创建弹窗
+    const modal = document.createElement('div');
+    modal.className = 'push-settings-modal';
+    modal.innerHTML = `
+      <div class="push-settings-modal-content">
+        <button class="push-settings-modal-close">×</button>
+        <div class="push-settings-modal-title">数据推送设置</div>
+        
+        <div class="push-settings-form">
+          <div class="push-settings-row">
+            <label class="push-settings-label">启用推送</label>
+            <label class="push-settings-switch">
+              <input type="checkbox" id="push-enabled" ${config.enabled ? 'checked' : ''}>
+              <span class="push-settings-slider"></span>
+            </label>
+          </div>
+          
+          <div class="push-settings-row">
+            <label class="push-settings-label">推送地址</label>
+            <input type="text" id="push-url" class="push-settings-input" 
+                   placeholder="https://your-server.com/api/push" 
+                   value="${config.url || ''}">
+          </div>
+          
+          <div class="push-settings-row">
+            <label class="push-settings-label">定时推送 (60秒)</label>
+            <label class="push-settings-switch">
+              <input type="checkbox" id="push-auto-enabled" ${config.autoEnabled ? 'checked' : ''}>
+              <span class="push-settings-slider"></span>
+            </label>
+          </div>
+          
+          <div class="push-settings-hint">
+            数据将以 POST 方式推送，包含：截止日期、应用名称、阶段状态、用户数等信息
+          </div>
+          
+          <div class="push-settings-actions">
+            <button id="push-test-btn" class="push-settings-btn push-settings-btn-secondary">测试推送</button>
+            <button id="push-save-btn" class="push-settings-btn push-settings-btn-primary">保存设置</button>
+          </div>
+          
+          <div id="push-status" class="push-settings-status"></div>
+        </div>
+      </div>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(modal);
+    
+    // 绑定关闭事件
+    modal.querySelector('.push-settings-modal-close').onclick = () => modal.remove();
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.remove();
+    };
+    
+    // 绑定保存事件
+    modal.querySelector('#push-save-btn').onclick = async () => {
+      const enabled = modal.querySelector('#push-enabled').checked;
+      const url = modal.querySelector('#push-url').value.trim();
+      const autoEnabled = modal.querySelector('#push-auto-enabled').checked;
+      const statusEl = modal.querySelector('#push-status');
+      
+      const success = await AppConfig.push.saveConfig({ enabled, url, autoEnabled });
+      
+      if (success) {
+        // 处理定时器
+        if (autoEnabled && enabled && url) {
+          AppConfig.push.startAutoTimer();
+        } else {
+          AppConfig.push.stopAutoTimer();
+        }
+        
+        statusEl.textContent = '✓ 设置已保存';
+        statusEl.className = 'push-settings-status push-settings-status-success';
+        setTimeout(() => modal.remove(), 1000);
+      } else {
+        statusEl.textContent = '✗ 保存失败';
+        statusEl.className = 'push-settings-status push-settings-status-error';
+      }
+    };
+    
+    // 绑定测试推送事件
+    modal.querySelector('#push-test-btn').onclick = async () => {
+      const enabled = modal.querySelector('#push-enabled').checked;
+      const url = modal.querySelector('#push-url').value.trim();
+      const autoEnabled = modal.querySelector('#push-auto-enabled').checked;
+      const statusEl = modal.querySelector('#push-status');
+      
+      if (!url) {
+        statusEl.textContent = '✗ 请先填写推送地址';
+        statusEl.className = 'push-settings-status push-settings-status-error';
+        return;
+      }
+      
+      // 临时保存配置用于测试
+      await AppConfig.push.saveConfig({ enabled: true, url, autoEnabled });
+      
+      statusEl.textContent = '正在推送...';
+      statusEl.className = 'push-settings-status';
+      
+      const apps = AppState.getAppsArray();
+      const result = await AppConfig.push.pushData(apps, AppState.cutOffTime);
+      
+      if (result.success) {
+        statusEl.textContent = '✓ ' + result.message;
+        statusEl.className = 'push-settings-status push-settings-status-success';
+      } else {
+        statusEl.textContent = '✗ ' + result.message;
+        statusEl.className = 'push-settings-status push-settings-status-error';
+      }
+      
+      // 恢复原来的启用状态
+      await AppConfig.push.saveConfig({ enabled, url, autoEnabled });
+    };
   },
   
   // 绑定社区按钮事件

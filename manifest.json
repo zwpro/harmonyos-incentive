@@ -4,25 +4,29 @@
   "version": "3.0.0",
   "description": "可视化展示应用鸿蒙激励数据，支持统计分析和海报生成。",
   "icons": {
-    "16": "images/icon/icon16.png",
-    "32": "images/icon/icon32.png",
-    "48": "images/icon/icon48.png",
-    "64": "images/icon/icon64.png",
-    "128": "images/icon/icon128.png",
-    "256": "images/icon/icon256.png"
+    "16": "images/logo.png",
+    "32": "images/logo.png",
+    "48": "images/logo.png",
+    "128": "images/logo.png"
   },
   "action": {
     "default_icon": {
-      "16": "images/icon/icon16.png",
-      "32": "images/icon/icon32.png",
-      "48": "images/icon/icon48.png",
-      "128": "images/icon/icon128.png"
+      "16": "images/logo.png",
+      "32": "images/logo.png",
+      "48": "images/logo.png",
+      "128": "images/logo.png"
     },
     "default_title": "鸿蒙激励计划小助手"
   },
   "permissions": [
     "activeTab",
     "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "<all_urls>"
   ],
   "content_scripts": [
     {
