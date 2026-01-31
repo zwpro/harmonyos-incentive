@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "鸿蒙激励计划小助手",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "可视化展示应用鸿蒙激励数据，支持统计分析和海报生成。",
   "icons": {
     "16": "images/icon/icon16.png",

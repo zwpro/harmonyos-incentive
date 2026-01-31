@@ -1,7 +1,7 @@
 // ========== 数据处理模块 ==========
 
 // 解析响应数据，提取应用列表
-function extractAppsFromResponse(response) {
+async function extractAppsFromResponse(response) {
   try {
     if (!response || !response.resJson) return;
     
@@ -26,11 +26,23 @@ function extractAppsFromResponse(response) {
       }
     });
     
-    // 保存所有应用的每日数据到本地
+    // 先保存所有应用的每日数据到本地，等待完成后再计算昨日新增
     if (enrichedApps.length > 0 && typeof AppStorage !== 'undefined') {
-      AppStorage.saveAllAppsData(enrichedApps).catch(err => {
+      try {
+        await AppStorage.saveAllAppsData(enrichedApps);
+        
+        // 保存完成后，再计算并更新昨日新增
+        for (const app of enrichedApps) {
+          getYesterdayIncrement(app.appId).then(increment => {
+            app.yesterdayIncrement = increment;
+            updateYesterdayIncrementDisplay(app.appId, increment);
+          }).catch(err => {
+            console.error('获取昨天新增失败:', err);
+          });
+        }
+      } catch (err) {
         console.error('保存应用数据失败:', err);
-      });
+      }
     }
     
     // 提取截止时间
@@ -67,7 +79,7 @@ function enrichAppData(app) {
   // 统一应用类型显示：小游戏 -> 游戏
   const normalizedAppType = app.appType === '小游戏' ? '游戏' : app.appType;
   
-  // 获取昨天新增（异步，初始值为'-'）
+  // 昨日新增默认为'-'，将在数据保存后统一计算
   const enrichedApp = {
     ...app,
     appType: normalizedAppType,
@@ -79,19 +91,8 @@ function enrichAppData(app) {
                 (parseInt(app.thirdMonthValidActiveUserNum) || 0),
     rewards,
     estimatedReward: rewards.total,
-    yesterdayIncrement: '-' // 默认值
+    yesterdayIncrement: '-' // 默认值，数据保存后会更新
   };
-  
-  // 异步获取昨天新增（不阻塞）
-  if (typeof AppStorage !== 'undefined') {
-    getYesterdayIncrement(app.appId).then(increment => {
-      enrichedApp.yesterdayIncrement = increment;
-      // 更新显示（仅更新特定单元格，不重新渲染整个表格）
-      updateYesterdayIncrementDisplay(app.appId, increment);
-    }).catch(err => {
-      console.error('获取昨天新增失败:', err);
-    });
-  }
   
   return enrichedApp;
 }
